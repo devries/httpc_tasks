@@ -28,7 +28,14 @@ pub fn main() {
   |> list.each(fn(r) {
     case { r |> result.replace_error("await error") |> result.flatten } {
       Ok(detail) -> {
-        io.println(detail.name <> ": ")
+        io.println(
+          detail.name
+          <> ": "
+          <> detail.severity
+          <> " --- "
+          <> "Score: "
+          <> detail.cvss.score,
+        )
         detail.package_state
         |> list.each(fn(ps) {
           case ps.cpe == cpe {

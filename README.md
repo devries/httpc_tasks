@@ -1,20 +1,9 @@
 # httpc_tasks
 
-[![Package Version](https://img.shields.io/hexpm/v/httpc_tasks)](https://hex.pm/packages/httpc_tasks)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/httpc_tasks/)
-
-```sh
-gleam add httpc_tasks@1
-```
-```gleam
-import httpc_tasks
-
-pub fn main() {
-  // TODO: An example of the project in use
-}
-```
-
-Further documentation can be found at <https://hexdocs.pm/httpc_tasks>.
+Query redhat database for status of a list of CVEs in the file cvelist.txt.
+This will provide the severity and score for each CVE along with the current
+state of the fix for the CVE in any package with the vulnerability
+that is part of the RHEL 8 codebase.
 
 ## Development
 
