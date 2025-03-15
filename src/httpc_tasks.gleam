@@ -4,6 +4,7 @@ import gleam/httpc
 import gleam/io
 import gleam/json
 import gleam/list
+import gleam/option
 import gleam/otp/task
 import gleam/pair
 import gleam/result
@@ -13,29 +14,34 @@ import simplifile
 const cpe = "cpe:/o:redhat:enterprise_linux:8"
 
 pub fn main() {
-  use content <- result.map(simplifile.read("cvelist.txt"))
+  use content <- result.map({
+    simplifile.read("cvelist.txt")
+    |> result.map_error(fn(e) {
+      io.println("error reading file: " <> simplifile.describe_error(e))
+    })
+  })
 
-  let cvelist =
-    content
-    |> string.trim
-    |> string.split("\n")
-    |> list.map(string.trim)
-
-  let functions = cvelist |> list.map(fn(s) { fn() { get_detail(s) } })
-
-  // Run 10 queries at a time with a cycle timeout of 200ms
-  batch_run(functions, 10, 200)
+  content
+  |> string.trim
+  |> string.split("\n")
+  |> list.map(string.trim)
+  |> list.map(fn(s) { fn() { get_detail(s) } })
+  |> batch_run(10, 200)
   |> list.each(fn(r) {
-    case { r |> result.replace_error("await error") |> result.flatten } {
+    let response =
+      r
+      |> result.replace_error("await error")
+      |> result.flatten
+
+    case response {
       Ok(detail) -> {
-        io.println(
-          detail.name
-          <> ": "
-          <> detail.severity
-          <> " --- "
-          <> "Score: "
-          <> detail.cvss.score,
-        )
+        let score_suffix = case detail.cvss {
+          option.None -> ""
+          option.Some(cvss) -> " --- Score: " <> cvss.score
+        }
+
+        io.println(detail.name <> ": " <> detail.severity <> score_suffix)
+
         detail.package_state
         |> list.each(fn(ps) {
           case ps.cpe == cpe {
@@ -62,7 +68,7 @@ pub type CVE {
     name: String,
     severity: String,
     public_date: String,
-    cvss: CVSS,
+    cvss: option.Option(CVSS),
     details: List(String),
     package_state: List(PackageState),
   )
@@ -73,11 +79,11 @@ pub fn parse_response(from body: String) -> Result(CVE, String) {
     use name <- decode.field("name", decode.string)
     use severity <- decode.field("threat_severity", decode.string)
     use public_date <- decode.field("public_date", decode.string)
-    use cvss <- decode.field("cvss3", {
+    use cvss <- decode.optional_field("cvss3", option.None, {
       use score <- decode.field("cvss3_base_score", decode.string)
       use vector <- decode.field("cvss3_scoring_vector", decode.string)
       use status <- decode.field("status", decode.string)
-      decode.success(CVSS(score:, vector:, status:))
+      decode.success(option.Some(CVSS(score:, vector:, status:)))
     })
     use details <- decode.field("details", decode.list(decode.string))
     use package_state <- decode.field(
@@ -101,7 +107,7 @@ pub fn parse_response(from body: String) -> Result(CVE, String) {
   }
 
   json.parse(from: body, using: decoder)
-  |> result.replace_error("unable to parse json")
+  |> result.map_error(fn(e) { "unable to parse json: " <> string.inspect(e) })
 }
 
 pub fn get_detail(cve: String) -> Result(CVE, String) {
