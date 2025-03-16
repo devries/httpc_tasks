@@ -14,17 +14,17 @@ import simplifile
 const cpe = "cpe:/o:redhat:enterprise_linux:8"
 
 pub fn main() {
-  use content <- result.map({
+  use content <- result.map(
     simplifile.read("cvelist.txt")
     |> result.map_error(fn(e) {
       io.println("error reading file: " <> simplifile.describe_error(e))
-    })
-  })
+    }),
+  )
 
   content
   |> string.split("\n")
-  |> list.filter(fn(line) { line != "" })
   |> list.map(string.trim)
+  |> list.filter(fn(line) { line != "" })
   |> list.map(fn(s) { fn() { get_detail(s) } })
   |> batch_run(10, 200)
   |> list.each(fn(r) {
@@ -162,7 +162,7 @@ fn batch_run_group(
         |> list.partition(fn(tup) {
           case tup {
             #(Error(task.Timeout), _) -> False
-            #(_, _) -> True
+            _ -> True
           }
         })
 
