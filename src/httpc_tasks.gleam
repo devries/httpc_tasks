@@ -22,8 +22,8 @@ pub fn main() {
   })
 
   content
-  |> string.trim
   |> string.split("\n")
+  |> list.filter(fn(line) { line != "" })
   |> list.map(string.trim)
   |> list.map(fn(s) { fn() { get_detail(s) } })
   |> batch_run(10, 200)
