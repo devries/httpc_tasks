@@ -26,7 +26,7 @@ pub fn main() {
   |> list.map(string.trim)
   |> list.filter(fn(line) { line != "" })
   |> list.map(fn(s) { fn() { get_detail(s) } })
-  |> batch_run(10, 200)
+  |> batch_run(10, 20)
   |> list.each(fn(r) {
     let response =
       r
