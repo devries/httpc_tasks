@@ -5,11 +5,10 @@ import gleam/io
 import gleam/json
 import gleam/list
 import gleam/option
-import gleam/otp/task
-import gleam/pair
 import gleam/result
 import gleam/string
 import simplifile
+import task_limiter
 
 const cpe = "cpe:/o:redhat:enterprise_linux:8"
 
@@ -26,7 +25,7 @@ pub fn main() {
   |> list.map(string.trim)
   |> list.filter(fn(line) { line != "" })
   |> list.map(fn(s) { fn() { get_detail(s) } })
-  |> batch_run(10, 20)
+  |> task_limiter.async_await(10, 20)
   |> list.each(fn(r) {
     let response =
       r
@@ -130,59 +129,4 @@ pub fn get_detail(cve: String) -> Result(CVE, String) {
   )
 
   parse_response(resp.body)
-}
-
-/// Run a set of functions asynchronously as OTP task in batches of the
-/// given size (num). This function will wait forever, but checks for
-/// completed jobs in intervals given by the timeout.
-pub fn batch_run(
-  work: List(fn() -> a),
-  num: Int,
-  timeout: Int,
-) -> List(Result(a, task.AwaitError)) {
-  let #(run_group, wait_group) = list.split(work, num)
-
-  let running = run_group |> list.map(task.async)
-  batch_run_group(running, wait_group, [], timeout)
-}
-
-fn batch_run_group(
-  running: List(task.Task(a)),
-  waiting: List(fn() -> a),
-  done: List(Result(a, task.AwaitError)),
-  timeout: Int,
-) -> List(Result(a, task.AwaitError)) {
-  case running {
-    [] -> done
-    _ -> {
-      let results = task.try_await_all(running, timeout) |> list.zip(running)
-
-      let #(finished, working) =
-        results
-        |> list.partition(fn(tup) {
-          case tup {
-            #(Error(task.Timeout), _) -> False
-            _ -> True
-          }
-        })
-
-      let finished_result =
-        finished
-        |> list.map(pair.first)
-
-      let working_tasks =
-        working
-        |> list.map(pair.second)
-
-      let n_to_add = list.length(finished)
-      let #(to_add, new_waiting) = list.split(waiting, n_to_add)
-
-      batch_run_group(
-        list.append(to_add |> list.map(task.async), working_tasks),
-        new_waiting,
-        list.append(finished_result, done),
-        timeout,
-      )
-    }
-  }
 }
