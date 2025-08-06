@@ -8,7 +8,7 @@ import gleam/option
 import gleam/result
 import gleam/string
 import simplifile
-import task_limiter
+import working_actors
 
 const cpe = "cpe:/o:redhat:enterprise_linux:8"
 
@@ -24,15 +24,9 @@ pub fn main() {
   |> string.split("\n")
   |> list.map(string.trim)
   |> list.filter(fn(line) { line != "" })
-  |> list.map(fn(s) { fn() { get_detail(s) } })
-  |> task_limiter.async_await(10, 20)
+  |> working_actors.spawn_workers(5, _, get_detail)
   |> list.each(fn(r) {
-    let response =
-      r
-      |> result.replace_error("await error")
-      |> result.flatten
-
-    case response {
+    case r {
       Ok(detail) -> {
         let score_suffix = case detail.cvss {
           option.None -> ""
@@ -124,6 +118,7 @@ pub fn get_detail(cve: String) -> Result(CVE, String) {
       case e {
         httpc.InvalidUtf8Response -> "invalid response"
         httpc.FailedToConnect(_, _) -> "connection failure"
+        httpc.ResponseTimeout -> "timeout"
       }
     }),
   )
